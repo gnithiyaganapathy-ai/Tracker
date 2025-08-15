@@ -3,7 +3,6 @@
 <head>
     <title>Meal & Travel Tracker</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <!-- Google Fonts: Roboto -->
     <link href="https://fonts.googleapis.com/css?family=Roboto:400,700&display=swap" rel="stylesheet">
     <style>
         body {
@@ -54,7 +53,7 @@
             font-size: 16px;
             border-radius: 6px;
             cursor: pointer;
-            margin-top: 20px;
+            margin-top: 15px;
             transition: background 0.3s;
             font-family: inherit;
             font-weight: 700;
@@ -131,6 +130,11 @@
                 padding: 6px;
             }
         }
+        .group-title {
+            background: #ffe8c3;
+            font-weight: 700;
+            color: #c47c00;
+        }
     </style>
 </head>
 <body>
@@ -154,7 +158,7 @@
         <label>Remarks</label>
         <textarea id="meal-remarks" placeholder="Enter any notes or impressions..."></textarea>
 
-        <button onclick="saveMeal()">Save Meal</button>
+        <button onclick="saveMeal()">Add Meal Entry</button>
     </div>
 
     <div class="section" id="travel-section">
@@ -177,7 +181,7 @@
         <label>Remarks</label>
         <textarea id="travel-remarks" placeholder="Travel notes..."></textarea>
 
-        <button onclick="saveTravel()">Save Travel</button>
+        <button onclick="saveTravel()">Add Travel Entry</button>
     </div>
 
     <div class="section">
@@ -214,11 +218,10 @@
     </div>
 
 <script>
+    // Meals: multiple entries per date
     let mealData = JSON.parse(localStorage.getItem('mealData')) || {};
-    let editingMealDate = null;
-
-    let travelData = JSON.parse(localStorage.getItem('travelData')) || {};
-    let editingTravelId = null;
+    let editMealKey = null;
+    let editMealIndex = null;
 
     function saveMeal() {
         const date = document.getElementById('meal-date').value;
@@ -231,7 +234,8 @@
             alert("Please select a date!");
             return;
         }
-        mealData[date] = { breakfast, lunch, dinner, remarks };
+        if (!mealData[date]) mealData[date] = [];
+        mealData[date].push({ breakfast, lunch, dinner, remarks });
         localStorage.setItem('mealData', JSON.stringify(mealData));
         renderMealTable();
         clearMealInputs();
@@ -242,27 +246,30 @@
         tbody.innerHTML = '';
         const dates = Object.keys(mealData).sort().reverse();
         for (const date of dates) {
-            if (editingMealDate === date) {
-                tbody.innerHTML += mealEditRow(date, mealData[date]);
-            } else {
-                tbody.innerHTML += `
-                    <tr>
-                        <td>${date}</td>
-                        <td>${mealData[date].breakfast || ''}</td>
-                        <td>${mealData[date].lunch || ''}</td>
-                        <td>${mealData[date].dinner || ''}</td>
-                        <td>${mealData[date].remarks || ''}</td>
-                        <td>
-                            <button class="action-btn edit-btn" onclick="editMeal('${date}')">Edit</button>
-                            <button class="action-btn delete-btn" onclick="deleteMeal('${date}')">Delete</button>
-                        </td>
-                    </tr>
-                `;
+            const entries = mealData[date];
+            for (let i = 0; i < entries.length; i++) {
+                if (editMealKey === date && editMealIndex === i) {
+                    tbody.innerHTML += mealEditRow(date, i, entries[i]);
+                } else {
+                    tbody.innerHTML += `
+                        <tr ${i===0?'class="group-title"':''}>
+                            <td>${date}</td>
+                            <td>${entries[i].breakfast || ''}</td>
+                            <td>${entries[i].lunch || ''}</td>
+                            <td>${entries[i].dinner || ''}</td>
+                            <td>${entries[i].remarks || ''}</td>
+                            <td>
+                                <button class="action-btn edit-btn" onclick="editMeal('${date}',${i})">Edit</button>
+                                <button class="action-btn delete-btn" onclick="deleteMeal('${date}',${i})">Delete</button>
+                            </td>
+                        </tr>
+                    `;
+                }
             }
         }
     }
 
-    function mealEditRow(date, meal) {
+    function mealEditRow(date, i, meal) {
         return `
             <tr>
                 <td>${date}</td>
@@ -271,52 +278,59 @@
                 <td><input type="text" id="edit_dinner" value="${meal.dinner || ''}"></td>
                 <td><textarea id="edit_meal_remarks">${meal.remarks || ''}</textarea></td>
                 <td>
-                    <button class="action-btn update-btn" onclick="updateMeal('${date}')">Update</button>
+                    <button class="action-btn update-btn" onclick="updateMeal('${date}',${i})">Update</button>
                     <button class="action-btn cancel-btn" onclick="cancelMealEdit()">Cancel</button>
                 </td>
             </tr>
         `;
     }
 
-    function editMeal(date) {
-        editingMealDate = date;
+    function editMeal(date, i) {
+        editMealKey = date;
+        editMealIndex = i;
         renderMealTable();
     }
 
-    function updateMeal(date) {
-        mealData[date] = {
+    function updateMeal(date, i) {
+        mealData[date][i] = {
             breakfast: document.getElementById('edit_breakfast').value.trim(),
             lunch: document.getElementById('edit_lunch').value.trim(),
             dinner: document.getElementById('edit_dinner').value.trim(),
             remarks: document.getElementById('edit_meal_remarks').value.trim()
         };
         localStorage.setItem('mealData', JSON.stringify(mealData));
-        editingMealDate = null;
+        editMealKey = null;
+        editMealIndex = null;
         renderMealTable();
     }
 
     function cancelMealEdit() {
-        editingMealDate = null;
+        editMealKey = null;
+        editMealIndex = null;
         renderMealTable();
     }
 
-    function deleteMeal(date) {
+    function deleteMeal(date, i) {
         if (confirm("Are you sure you want to delete this meal entry?")) {
-            delete mealData[date];
+            mealData[date].splice(i, 1);
+            if (mealData[date].length === 0) delete mealData[date];
             localStorage.setItem('mealData', JSON.stringify(mealData));
             renderMealTable();
         }
     }
 
     function clearMealInputs() {
-        document.getElementById('meal-date').value = '';
         document.getElementById('breakfast').value = '';
         document.getElementById('lunch').value = '';
         document.getElementById('dinner').value = '';
         document.getElementById('meal-remarks').value = '';
+        // Date remains selected for easy multi-entry
     }
 
-    // Travel Section Code
+    // Travel: multiple entries per date
+    let travelData = JSON.parse(localStorage.getItem('travelData')) || {};
+    let editTravelKey = null;
+    let editTravelIndex = null;
 
     function saveTravel() {
         const date = document.getElementById('travel-date').value;
@@ -336,16 +350,9 @@
             alert("Please enter a valid amount!");
             return;
         }
-
-        // Use unique ID for travel entries
-        if (!editingTravelId) {
-            // Create a new id, timestamp based
-            editingTravelId = 'travel_' + Date.now();
-        }
-
-        travelData[editingTravelId] = { date, mode, amount, remarks };
+        if (!travelData[date]) travelData[date] = [];
+        travelData[date].push({ mode, amount, remarks });
         localStorage.setItem('travelData', JSON.stringify(travelData));
-        editingTravelId = null;
         renderTravelTable();
         clearTravelInputs();
     }
@@ -353,66 +360,63 @@
     function renderTravelTable() {
         const tbody = document.querySelector('#travelTable tbody');
         tbody.innerHTML = '';
-        const keys = Object.keys(travelData).sort((a,b) => travelData[b].date.localeCompare(travelData[a].date));
-        for (const key of keys) {
-            const t = travelData[key];
-            if (key === editingTravelId) {
-                tbody.innerHTML += travelEditRow(key, t);
-            } else {
-                tbody.innerHTML += `
-                    <tr>
-                        <td>${t.date}</td>
-                        <td>${t.mode}</td>
-                        <td>₹${t.amount}</td>
-                        <td>${t.remarks || ''}</td>
-                        <td>
-                            <button class="action-btn edit-btn" onclick="editTravel('${key}')">Edit</button>
-                            <button class="action-btn delete-btn" onclick="deleteTravel('${key}')">Delete</button>
-                        </td>
-                    </tr>
-                `;
+        const dates = Object.keys(travelData).sort().reverse();
+        for (const date of dates) {
+            const entries = travelData[date];
+            for (let i = 0; i < entries.length; i++) {
+                if (editTravelKey === date && editTravelIndex === i) {
+                    tbody.innerHTML += travelEditRow(date, i, entries[i]);
+                } else {
+                    tbody.innerHTML += `
+                        <tr ${i===0?'class="group-title"':''}>
+                            <td>${date}</td>
+                            <td>${entries[i].mode}</td>
+                            <td>₹${entries[i].amount}</td>
+                            <td>${entries[i].remarks || ''}</td>
+                            <td>
+                                <button class="action-btn edit-btn" onclick="editTravel('${date}',${i})">Edit</button>
+                                <button class="action-btn delete-btn" onclick="deleteTravel('${date}',${i})">Delete</button>
+                            </td>
+                        </tr>
+                    `;
+                }
             }
         }
     }
 
-    function travelEditRow(id, travel) {
+    function travelEditRow(date, i, entry) {
         return `
             <tr>
-                <td><input type="date" id="edit_travel_date" value="${travel.date}"></td>
+                <td>${date}</td>
                 <td>
-                    <select id="edit_transport_mode">
-                        <option value="">-- Select Mode --</option>
-                        <option value="Bus" ${travel.mode==='Bus'?'selected':''}>Bus</option>
-                        <option value="Auto" ${travel.mode==='Auto'?'selected':''}>Auto</option>
-                        <option value="Cab" ${travel.mode==='Cab'?'selected':''}>Cab</option>
-                        <option value="Train" ${travel.mode==='Train'?'selected':''}>Train</option>
-                    </select>
+                <select id="edit_transport_mode">
+                    <option value="">-- Select Mode --</option>
+                    <option value="Bus" ${entry.mode==='Bus'?'selected':''}>Bus</option>
+                    <option value="Auto" ${entry.mode==='Auto'?'selected':''}>Auto</option>
+                    <option value="Cab" ${entry.mode==='Cab'?'selected':''}>Cab</option>
+                    <option value="Train" ${entry.mode==='Train'?'selected':''}>Train</option>
+                </select>
                 </td>
-                <td><input type="text" id="edit_travel_amount" value="${travel.amount}"></td>
-                <td><textarea id="edit_travel_remarks">${travel.remarks || ''}</textarea></td>
+                <td><input type="text" id="edit_travel_amount" value="${entry.amount}"></td>
+                <td><textarea id="edit_travel_remarks">${entry.remarks || ''}</textarea></td>
                 <td>
-                    <button class="action-btn update-btn" onclick="updateTravel('${id}')">Update</button>
+                    <button class="action-btn update-btn" onclick="updateTravel('${date}',${i})">Update</button>
                     <button class="action-btn cancel-btn" onclick="cancelTravelEdit()">Cancel</button>
                 </td>
             </tr>
         `;
     }
 
-    function editTravel(id) {
-        editingTravelId = id;
+    function editTravel(date, i) {
+        editTravelKey = date;
+        editTravelIndex = i;
         renderTravelTable();
     }
 
-    function updateTravel(id) {
-        const date = document.getElementById('edit_travel_date').value;
+    function updateTravel(date, i) {
         const mode = document.getElementById('edit_transport_mode').value;
         const amount = document.getElementById('edit_travel_amount').value.trim();
         const remarks = document.getElementById('edit_travel_remarks').value.trim();
-
-        if (!date) {
-            alert("Please select a date!");
-            return;
-        }
         if (!mode) {
             alert("Please select a transport mode!");
             return;
@@ -421,31 +425,33 @@
             alert("Please enter a valid amount!");
             return;
         }
-
-        travelData[id] = { date, mode, amount, remarks };
+        travelData[date][i] = { mode, amount, remarks };
         localStorage.setItem('travelData', JSON.stringify(travelData));
-        editingTravelId = null;
+        editTravelKey = null;
+        editTravelIndex = null;
         renderTravelTable();
     }
 
     function cancelTravelEdit() {
-        editingTravelId = null;
+        editTravelKey = null;
+        editTravelIndex = null;
         renderTravelTable();
     }
 
-    function deleteTravel(id) {
+    function deleteTravel(date, i) {
         if (confirm("Are you sure you want to delete this travel entry?")) {
-            delete travelData[id];
+            travelData[date].splice(i, 1);
+            if (travelData[date].length === 0) delete travelData[date];
             localStorage.setItem('travelData', JSON.stringify(travelData));
             renderTravelTable();
         }
     }
 
     function clearTravelInputs() {
-        document.getElementById('travel-date').value = '';
         document.getElementById('transport-mode').value = '';
         document.getElementById('travel-amount').value = '';
         document.getElementById('travel-remarks').value = '';
+        // Date remains selected for easy multi-entry
     }
 
     // Initial rendering
